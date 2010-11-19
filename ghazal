@@ -1,0 +1,37 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa ./ebin
+
+main(StrArgs) ->
+    {Opts, Args} = process_cmdline(StrArgs),
+    [ModFile|_] = Args,
+    Code = 
+    case file:read_file(ModFile) of
+        {ok, B} ->
+            binary_to_list(B);
+        {error, Reason} ->
+            io:format("[Error]: could not open file ~p (~p)~n", [ModFile, Reason]),
+            exit(1)
+    end,
+    case lists:keymember(ast, 2, Opts) of
+        true -> io:format("AST:~n~p~n", [ghazal_eval:ast(Code)]);
+        false -> ok
+    end,
+    case lists:keymember(tokens, 2, Opts) of
+        true -> io:format("Tokens:~n~p~n", [ghazal_lexer:string(Code)]);
+        false -> ok
+    end,
+    ghazal_eval:eval(Code).
+
+process_cmdline(StrArgs) ->
+    {Opts, Args} = process_cmdline(StrArgs, [], []),
+    {Opts, lists:reverse(Args)}.
+
+process_cmdline([], Opts, Args) ->
+    {Opts, Args};
+process_cmdline(["--ast"|Rest], Opts, Args) ->
+    process_cmdline(Rest, [{opt,ast}|Opts], Args);
+process_cmdline(["--tokens"|Rest], Opts, Args) ->
+    process_cmdline(Rest, [{opt,tokens}|Opts], Args);
+process_cmdline([Item|Rest], Opts, Args) ->
+    process_cmdline(Rest, Opts, [Item|Args]).

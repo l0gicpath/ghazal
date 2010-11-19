@@ -1,0 +1,12 @@
+(defmodule closure
+    (let (:x 5)
+        (defun plus5 (:y) (+ x y)))
+    (plus5 6)
+    
+    ;; (defun adder (:by)
+    ;;     (lambda (:x) (+ x by))
+    ;; )
+    
+    ;; (let (:plus5 (adder 5))
+    ;;   (plus5 0.1))
+)

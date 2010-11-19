@@ -1,0 +1,9 @@
+(defmodule simple 
+    (defun square (:x) (* x x))
+    (println 
+        (let 
+            (:z 10 
+            :y (- z 9))
+        (+ y (square z))
+        (/ z 2)))
+)
