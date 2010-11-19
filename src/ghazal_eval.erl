@@ -53,19 +53,25 @@ eval([{identifier, _Line, "defun"}|Rest], Globals, Locals) ->
     {Val, Globals1} = eval_defun(Rest, Globals, Locals),
     {Val, Globals1, Locals};
 
+% handle lambda defn
+eval([{identifier, _Line, "lambda"}|Rest], Globals, Locals) ->
+    Val = eval_lambda(Rest, Globals, Locals),
+    {Val, Globals, Locals};
+
 % handle let
 eval([{identifier, _Line, "let"}|Rest], Globals, Locals) ->
     {Val, Globals1} = eval_let(Rest, Globals, Locals),
     {Val, Globals1, Locals};
+    
 
 % handle function call, built-in call if possible
-eval([{identifier, _Line, Fn}|Rest]=Call, Globals, Locals) ->
-    case is_callable(Fn, Globals) of
-        true -> 
-            {Val, Globals1} = eval_call(Call, Globals, Locals),
-            {Val, Globals1, Locals};
-        false ->
-            eval_list(Call, Globals, Locals)
+eval([{identifier, _Line, Name}|Rest]=Call, Globals, Locals) ->
+    case get_callable(Name, Globals, Locals) of
+        error ->
+            eval_list(Call, Globals, Locals);
+        Target -> 
+            {Val, Globals1} = eval_call(Call, Target, Globals, Locals),
+            {Val, Globals1, Locals}
     end;
 
 % handle list of expressions (let-body, fun-body, etc) -- return val of last expression
@@ -74,7 +80,7 @@ eval(L, Globals, Locals) when is_list(L) ->
 
 % handle variable => lookup in Locals and Globals
 eval({identifier, _Line, Var}, Globals, Locals) ->
-    io:format("eval_variable: ~p in (Globals=~p & Locals=~p)~n", [Var, dict:to_list(Globals), dict:to_list(Locals)]),
+    io:format("eval_variable: ~p in (Globals=~p ~n Locals=~p)~n", [Var, dict:to_list(Globals), dict:to_list(Locals)]),
     Val1 = case dict:find(Var, Locals) of
         {ok, Val} -> Val;
         error -> dict:find(Var, Globals)
@@ -105,14 +111,24 @@ eval_defun([{identifier, _Line, Name}|[ArgsList|FunBody]], Globals, Locals) ->
     {none, Globals1}.
 
 %%
+%% Lambda defns
+%%
+
+eval_lambda([ArgsList|Body], _Globals, Locals) ->
+    Args = lists:map(fun (X) -> erlang:atom_to_list(X) end, ArgsList),
+    Thunk = {thunk, Locals, Args, Body},
+    Thunk.
+
+
+%%
 %% Function calls
 %%
 
-eval_call(Call, Globals, Locals) ->
+eval_call(Call, Target, Globals, Locals) ->
     [{identifier, _Line, Name}|Args] = Call,
     io:format("eval_call:~n Name = ~p, Args = ~w~n", [Name, Args]),
     {ArgValues, Globals1} = eval_call_args(Args, Globals, Locals),
-    eval_call_body(Name, ArgValues, Globals1).
+    eval_call_body(Target, ArgValues, Globals1).
     
 eval_call_args(Args, Globals, Locals) ->
     {ArgV, Globals3} = 
@@ -128,12 +144,11 @@ eval_call_args(Args, Globals, Locals) ->
     io:format(" eval_call_args: (after eval) = ~w~n", [ArgValues]),
     {ArgValues, Globals3}.
 
-eval_call_body(Name, ArgValues, Globals) ->
-    {ok, Target} = dict:find(Name, Globals),
+eval_call_body(Target, ArgValues, Globals) ->
     case Target of
         {thunk, Closure, ArgsList, FunBody} -> 
             Locals = ghazal_utils:dict_store_list(lists:zip(ArgsList, ArgValues), Closure),
-            io:format(" Evaling FunBody = ~p with locals = ~p~n", [FunBody, Locals]),
+            io:format(" Evaling FunBody = ~p ~n with locals = ~p~n", [FunBody, Locals]),
             {Vals, Globals1, _} = eval(FunBody, Globals, Locals),
             Val = lists:last(Vals),
             io:format("Return = ~p~n", [Val]),
@@ -144,11 +159,11 @@ eval_call_body(Name, ArgValues, Globals) ->
             {Val, Globals}
     end.
 
-is_callable(Name, Globals) ->
-    case dict:find(Name, Globals) of
-        {ok, {thunk, _, _, _}} -> true;
-        {ok, {builtin, _}} -> true;
-        _ -> false
+get_callable(Name, Globals, Locals) ->
+    case dict:find(Name, ghazal_utils:dict_combine(Globals, Locals)) of
+        {ok, {thunk, _, _, _}=Thunk} -> Thunk;
+        {ok, {builtin, _}=Builtin} -> Builtin;
+        _ -> error
     end.
 
 %%
@@ -158,7 +173,7 @@ is_callable(Name, Globals) ->
 eval_let([Bindings|LetBody], Globals, Locals) ->
     io:format("eval_let:~n"),
     {Globals1, Locals1} = eval_let_bindings(Bindings, Globals, Locals),
-    io:format(" Evaling LetBody = ~p with locals = ~p~n", [LetBody, dict:to_list(Locals1)]),
+    io:format(" Evaling LetBody = ~p ~n with locals = ~p~n", [LetBody, dict:to_list(Locals1)]),
     {Vals, Globals2, _} = eval(LetBody, Globals1, Locals1),
     Val = lists:last(Vals),
     io:format("  let return: ~w~n", [Val]),
