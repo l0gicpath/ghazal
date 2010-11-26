@@ -24,11 +24,11 @@ ast_simplify(Val) -> Val.
 builtins() ->
     dict:from_list(
       [
-        {"+", {builtin, fun(X, Y) -> X + Y end}},
-        {"-", {builtin, fun(X, Y) -> X - Y end}},
-        {"*", {builtin, fun(X, Y) -> X * Y end}},
-        {"/", {builtin, fun(X, Y) -> X / Y end}},
-        {"println", 
+        {".+", {builtin, fun(X, Y) -> X + Y end}},
+        {".-", {builtin, fun(X, Y) -> X - Y end}},
+        {".*", {builtin, fun(X, Y) -> X * Y end}},
+        {"./", {builtin, fun(X, Y) -> X / Y end}},
+        {".println", 
             {builtin, fun(X) -> io:format("~p~n", [X]) end}
         }
       ]).
@@ -81,24 +81,37 @@ eval(L, Globals, Locals) when is_list(L) ->
 % handle variable => lookup in Locals and Globals
 eval({identifier, _Line, Var}, Globals, Locals) ->
     io:format("eval_variable: ~p in (Globals=~p ~n Locals=~p)~n", [Var, dict:to_list(Globals), dict:to_list(Locals)]),
-    Val1 = case dict:find(Var, Locals) of
-        {ok, Val} -> Val;
-        error -> dict:find(Var, Globals)
-    end,
+    {ok, Val1} = resolve_identifier(Globals, Locals, Var),
     io:format("   variable return = ~p~n", [Val1]),
     {Val1, Globals, Locals};
 
 % handle misc -- atoms, strings, numbers, etc
 eval(Val, Globals, Locals) -> {Val, Globals, Locals}.
 
+resolve_identifier(Globals, Locals, Name) ->
+    case dict:find(Name, Locals) of
+        {ok, Val} -> {ok, Val};
+        error -> ghazal_ns:resolve(Globals, Name)
+    end.
 
 %%
 %% Module defns
 %%
 
 eval_defmodule([{identifier, _Line, ModName} | Rest], Globals, Locals) ->
-    {_Vals, Globals1, _} = eval(Rest, Globals, Locals),
-    {ModName, Globals1}.
+    CurrentNS = ghazal_ns:current(Globals),
+    
+    % update Globals with the new namespace
+    NewNS = ghazal_ns:join(CurrentNS, ModName),
+    Globals1 = ghazal_ns:set_current(Globals, NewNS),
+    
+    % eval everything under the new namespace
+    {_Vals, Globals2, _} = eval(Rest, Globals1, Locals),
+    
+    % restore the old namespace back.
+    Globals3 = ghazal_ns:set_current(Globals2, CurrentNS),
+    {ModName, Globals3}.
+    
 
 %%
 %% Function defns
@@ -106,17 +119,18 @@ eval_defmodule([{identifier, _Line, ModName} | Rest], Globals, Locals) ->
 
 eval_defun([{identifier, _Line, Name}|[ArgsList|FunBody]], Globals, Locals) ->
     Args = lists:map(fun (X) -> erlang:atom_to_list(X) end, ArgsList),
-    Thunk = {thunk, Locals, Args, FunBody},
-    Globals1 = dict:store(Name, Thunk, Globals), 
+    Thunk = {thunk, ghazal_ns:current(Globals), Locals, Args, FunBody},
+    DefunName = ghazal_ns:join(ghazal_ns:current(Globals), Name),
+    Globals1 = dict:store(DefunName, Thunk, Globals), 
     {none, Globals1}.
 
 %%
 %% Lambda defns
 %%
 
-eval_lambda([ArgsList|Body], _Globals, Locals) ->
+eval_lambda([ArgsList|Body], Globals, Locals) ->
     Args = lists:map(fun (X) -> erlang:atom_to_list(X) end, ArgsList),
-    Thunk = {thunk, Locals, Args, Body},
+    Thunk = {thunk, ghazal_ns:current(Globals), Locals, Args, Body},
     Thunk.
 
 
@@ -146,13 +160,21 @@ eval_call_args(Args, Globals, Locals) ->
 
 eval_call_body(Target, ArgValues, Globals) ->
     case Target of
-        {thunk, Closure, ArgsList, FunBody} -> 
+        {thunk, NS, Closure, ArgsList, FunBody} -> 
             Locals = ghazal_utils:dict_store_list(lists:zip(ArgsList, ArgValues), Closure),
             io:format(" Evaling FunBody = ~p ~n with locals = ~p~n", [FunBody, Locals]),
-            {Vals, Globals1, _} = eval(FunBody, Globals, Locals),
+            
+            % restore lexical namespace before evaling Body
+            Globals1 = ghazal_ns:set_current(Globals, NS),
+            {Vals, Globals2, _} = eval(FunBody, Globals1, Locals),
+
+            % revert back to original namespace
+            Globals3 = ghazal_ns:set_current(Globals2, ghazal_ns:current(Globals)),
+
+            % return result
             Val = lists:last(Vals),
-            io:format("Return = ~p~n", [Val]),
-            {Val, Globals1};
+            io:format("Return = ~p~n", [Val]),    
+            {Val, Globals3};
         {builtin, Fun} ->
             Val = erlang:apply(Fun, ArgValues),
             io:format("Built-in return = ~p~n", [Val]),
@@ -160,8 +182,8 @@ eval_call_body(Target, ArgValues, Globals) ->
     end.
 
 get_callable(Name, Globals, Locals) ->
-    case dict:find(Name, ghazal_utils:dict_combine(Globals, Locals)) of
-        {ok, {thunk, _, _, _}=Thunk} -> Thunk;
+    case resolve_identifier(Globals, Locals, Name) of
+        {ok, {thunk, _, _, _, _}=Thunk} -> Thunk;
         {ok, {builtin, _}=Builtin} -> Builtin;
         _ -> error
     end.

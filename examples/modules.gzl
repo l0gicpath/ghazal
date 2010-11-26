@@ -1,0 +1,17 @@
+(defmodule math 
+    (defun square (:x) (* x x))
+    (defun cube (:x) (* (square x) x))
+    
+    (cube 5)
+)
+
+(defmodule constants
+    (defun pi () 3.14)
+)
+
+(defmodule geometry
+    (defun area-of-circle (:radius)
+        (* (constants.pi) (math.square radius)))
+)
+
+(geometry.area-of-circle 5.0)

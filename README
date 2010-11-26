@@ -1,33 +1,8 @@
-(module my-module
-	(defun fn1 (:x :y :z)
-		(+ (* x y) (fn2 z)))
-		
-	(defun fn2 (:z)
-		(* z z))
-
-	(defun fn3 (:x)
-		(println :x)
-		(let (:x 100
-			  :y 200
-			  :z (+ x y))
-			(println (fn2 z))
-			;; .....
-		)
-		(println :x)
-		)
-	
-	(defun area (:radius)
-		(let (:pi 3.14)
-			(* pi (square radius)))
-		)
-)
-
-
 TODOS
 
-	* lambdas
-	* multiple modules/namespacing
-		* load multiple modules from multiple files - add a new form (include/require "/path/to/file")
+	* [DONE] lambdas
+	* [DONE] multiple modules/namespacing
+	* load multiple modules from multiple files - add a new form (include/require "/path/to/file")
 	* dynamic binding via special clojure-like vars (*var1*)
 	* recursion, tail-recursion
 	* lots of builtins

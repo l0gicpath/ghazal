@@ -1,8 +1,10 @@
-Nonterminals list elements element.
+Nonterminals program lists list elements element.
 Terminals '(' ')' integer float atom string identifier.
-Rootsymbol list.
+Rootsymbol program.
 
-list -> '(' ')'.
+program -> lists : '$1'.
+lists -> list lists : ['$1'|'$2'].
+lists -> '$empty': [].
 list -> '(' elements ')' : '$2'.
 elements -> element elements : ['$1'|'$2'].
 elements -> '$empty' : [].
