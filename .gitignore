@@ -1,3 +1,5 @@
 ebin/*
 *~
 .DS_Store
+src/ghazal_lexer.erl
+src/ghazal_parser.erl
