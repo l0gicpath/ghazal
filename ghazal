@@ -5,14 +5,7 @@
 main(StrArgs) ->
     {Opts, Args} = process_cmdline(StrArgs),
     [ModFile|_] = Args,
-    Code = 
-    case file:read_file(ModFile) of
-        {ok, B} ->
-            binary_to_list(B);
-        {error, Reason} ->
-            io:format("[Error]: could not open file ~p (~p)~n", [ModFile, Reason]),
-            exit(1)
-    end,
+    Code = ghazal_utils:read_code(ModFile),
     case lists:keymember(ast, 2, Opts) of
         true -> io:format("AST:~n~p~n", [ghazal_eval:ast(Code)]);
         false -> ok

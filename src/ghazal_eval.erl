@@ -1,6 +1,6 @@
 -module(ghazal_eval).
 
--compile(export_all).
+-export([ast/1, eval/1, eval/3]).
 
 
 %%
@@ -20,26 +20,13 @@ ast_simplify(Vals) when is_list(Vals) -> lists:map(fun ast_simplify/1, Vals);
 ast_simplify(Val) -> Val.
 
 
-
-builtins() ->
-    dict:from_list(
-      [
-        {".+", {builtin, fun(X, Y) -> X + Y end}},
-        {".-", {builtin, fun(X, Y) -> X - Y end}},
-        {".*", {builtin, fun(X, Y) -> X * Y end}},
-        {"./", {builtin, fun(X, Y) -> X / Y end}},
-        {".println", 
-            {builtin, fun(X) -> io:format("~p~n", [X]) end}
-        }
-      ]).
-
 %%
 %% eval() code
 %%
 
 eval(Code) ->
     AST = ast(Code),
-    Globals = builtins(),
+    Globals = ghazal_native:builtins(),
     Locals = dict:new(),
     eval(AST, Globals, Locals).
 
@@ -47,6 +34,10 @@ eval(Code) ->
 eval([{identifier, _Line, "defmodule"}|Rest], Globals, Locals) ->
     {_ModName, Globals1} = eval_defmodule(Rest, Globals, Locals),
     {none, Globals1, Locals};
+
+eval([{identifier, _Line, "include"}|Rest], Globals, Locals) ->
+    {Val, Globals1} = eval_include(Rest, Globals, Locals),
+    {Val, Globals1, Locals};
 
 % handle defun
 eval([{identifier, _Line, "defun"}|Rest], Globals, Locals) ->
@@ -111,7 +102,26 @@ eval_defmodule([{identifier, _Line, ModName} | Rest], Globals, Locals) ->
     % restore the old namespace back.
     Globals3 = ghazal_ns:set_current(Globals2, CurrentNS),
     {ModName, Globals3}.
-    
+
+eval_include(IncludePaths, Globals, Locals) ->
+    Globals3 = lists:foldl(
+        fun(FilePath, Globals1) ->
+            % check if already loaded
+            case ghazal_ns:resolve(Globals1, FilePath) of
+                {ok, _Val} -> Globals1;
+                error -> 
+                    Code = ghazal_utils:read_code(FilePath),
+                    AST = ast(Code),
+                    {_, Globals2, _Locals} = eval(AST, Globals1, dict:new()),
+            
+                    % mark as loaded in globals for future reference
+                    Globals2
+            end
+        end,
+        Globals,
+        IncludePaths
+    ),
+    {none, Globals3}.
 
 %%
 %% Function defns
