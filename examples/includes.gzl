@@ -1,0 +1,5 @@
+(include 
+    "./examples/simple.gzl"
+    "./examples/modules.gzl")
+
+(geometry.area-of-circle (simple.square 5))

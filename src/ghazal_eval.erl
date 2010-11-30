@@ -53,7 +53,11 @@ eval([{identifier, _Line, "lambda"}|Rest], Globals, Locals) ->
 eval([{identifier, _Line, "let"}|Rest], Globals, Locals) ->
     {Val, Globals1} = eval_let(Rest, Globals, Locals),
     {Val, Globals1, Locals};
-    
+
+% handle if
+eval([{identifier, _Line, "if"}|Rest], Globals, Locals) ->
+    {Val, Globals1} = eval_if(Rest, Globals, Locals),
+    {Val, Globals1, Locals};
 
 % handle function call, built-in call if possible
 eval([{identifier, _Line, Name}|Rest]=Call, Globals, Locals) ->
@@ -65,13 +69,13 @@ eval([{identifier, _Line, Name}|Rest]=Call, Globals, Locals) ->
             {Val, Globals1, Locals}
     end;
 
-% handle list of expressions (let-body, fun-body, etc) -- return val of last expression
+% handle list of expressions (let-body, fun-body, etc) -- returns list of vals
 eval(L, Globals, Locals) when is_list(L) ->
     eval_list(L, Globals, Locals);
 
 % handle variable => lookup in Locals and Globals
 eval({identifier, _Line, Var}, Globals, Locals) ->
-    io:format("eval_variable: ~p in (Globals=~p ~n Locals=~p)~n", [Var, dict:to_list(Globals), dict:to_list(Locals)]),
+    io:format("eval_variable: ~p in (Globals ~n Locals=~p)~n", [Var, dict:to_list(Locals)]),
     {ok, Val1} = resolve_identifier(Globals, Locals, Var),
     io:format("   variable return = ~p~n", [Val1]),
     {Val1, Globals, Locals};
@@ -218,6 +222,23 @@ eval_let_bindings([Var,Val|RemBindings], Globals, Locals) ->
     io:format("eval_let_bindings: (~p eval'd to ~p)~n", [Var, Val1]),
     Locals1 = dict:store(erlang:atom_to_list(Var), Val1, Locals),
     eval_let_bindings(RemBindings, Globals1, Locals1).
+
+%%
+%% if expressions
+%%
+
+eval_if([TestBody, ThenBody, ElseBody], Globals, Locals) ->
+    io:format("eval_if:~n"),
+    {TestResult, Globals1, _} = eval(TestBody, Globals, Locals),
+    io:format("  test result: ~p~n", [TestResult]),
+    {Vals1, Globals2, _} =
+    case TestResult of
+        true -> eval([ThenBody], Globals1, Locals);
+        false -> eval([ElseBody], Globals1, Locals)
+    end,
+    Val = lists:last(Vals1),
+    io:format("  if return: ~w~n", [Val]),
+    {Val, Globals2}.
 
 %%
 %% list of expressions (bodies of code)

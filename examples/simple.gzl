@@ -1,9 +1,19 @@
 (defmodule simple 
+    ;; defun
     (defun square (:x) (* x x))
+
+    ;; let 
     (println 
         (let 
             (:z 10 
             :y (- z 9))
         (+ y (square z))
         (/ z 2)))
+
+    ;; conditions
+    (defun abs (:x) 
+        (if (< x 0)
+            (* -1 x)
+            x))
+    (println (abs -5))
 )

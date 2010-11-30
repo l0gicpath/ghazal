@@ -3,12 +3,11 @@ TODOS
 	* [DONE] lambdas
 	* [DONE] multiple modules/namespacing
 	* [DONE] load multiple modules from multiple files - add a new form (include/require "/path/to/file")
-	* add "if/cond" special form
-	* dynamic binding via special clojure-like vars (*var1*)
-	* recursion, tail-recursion
-	* lots of builtins
-		* cond/if
+	* other special forms
+		* [DONE] cond/if
 		* loops
+	* dynamic binding via special clojure-like vars (*var1*)
+	* recursion, TCO?
 	* stricter grammar checking
 	* smarter error messages from the interpreter
 		* stack trace

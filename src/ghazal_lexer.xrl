@@ -9,9 +9,9 @@ Rules.
 	skip_token.
 :[^\s\n\t\(\)\"]+ :
     {token, {atom, TokenLine, list_to_atom(string:strip(TokenChars, left, $:))}}.
-{D}+\.{D}+((E|e)(\+|\-)?{D}+)? :
+(\-)?{D}+\.{D}+((E|e)(\+|\-)?{D}+)? :
     {token,{float, TokenLine, list_to_float(TokenChars)}}.
-{D}+ : 
+(\-)?{D}+ : 
     {token, {integer, TokenLine, list_to_integer(TokenChars)}}.
 \( :
     {token, {'(', TokenLine}}.
